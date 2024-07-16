@@ -1,0 +1,344 @@
+import tkinter as tk
+from tkinter import messagebox, ttk
+import sqlite3
+from datetime import datetime
+
+# Conectar ao banco de dados (ou criar se não existir)
+conn = sqlite3.connect('cadastros.db')
+cursor = conn.cursor()
+
+# Função para verificar a existência de uma coluna em uma tabela
+def coluna_existe(nome_tabela, nome_coluna):
+    cursor.execute(f"PRAGMA table_info({nome_tabela})")
+    colunas = [info[1] for info in cursor.fetchall()]
+    return nome_coluna in colunas
+
+# Criar tabelas se não existirem
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS devedores (
+    id INTEGER PRIMARY KEY,
+    nome TEXT NOT NULL UNIQUE
+)
+''')
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS cartoes (
+    id INTEGER PRIMARY KEY,
+    nome TEXT NOT NULL UNIQUE
+)
+''')
+
+# Verificar se a tabela 'despesas' possui as colunas 'cartao_id' e 'valor_compra'
+if not coluna_existe('despesas', 'cartao_id') or not coluna_existe('despesas', 'valor_compra'):
+    cursor.execute('DROP TABLE IF EXISTS despesas')
+    cursor.execute('''
+    CREATE TABLE despesas (
+        id INTEGER PRIMARY KEY,
+        devedor_id INTEGER NOT NULL,
+        cartao_id INTEGER NOT NULL,
+        local_compra TEXT NOT NULL,
+        valor_compra REAL NOT NULL,
+        data_compra TEXT NOT NULL,
+        tipo_pagamento TEXT NOT NULL,
+        parcelas INTEGER,
+        FOREIGN KEY(devedor_id) REFERENCES devedores(id),
+        FOREIGN KEY(cartao_id) REFERENCES cartoes(id)
+    )
+    ''')
+conn.commit()
+
+# Função para salvar o nome do devedor
+def salvar_devedor():
+    nome = entry_nome_devedor.get()
+    if nome:
+        cursor.execute('SELECT * FROM devedores WHERE nome = ?', (nome,))
+        if cursor.fetchone():
+            messagebox.showwarning("Erro", f"Devedor {nome} já existe!")
+        else:
+            cursor.execute('INSERT INTO devedores (nome) VALUES (?)', (nome,))
+            conn.commit()
+            messagebox.showinfo("Sucesso", f"Devedor {nome} cadastrado com sucesso!")
+            janela_devedor.destroy()  # Fecha a janela após salvar
+    else:
+        messagebox.showwarning("Erro", "O nome do devedor não pode estar vazio.")
+
+# Função para abrir a tela de cadastro de devedor
+def cadastro_devedor():
+    global janela_devedor, entry_nome_devedor
+    janela_devedor = tk.Toplevel(root)
+    janela_devedor.title("Cadastro de Devedor")
+    janela_devedor.attributes("-fullscreen", True)
+
+    frame = tk.Frame(janela_devedor)
+    frame.pack(expand=True, fill=tk.BOTH)
+
+    tk.Label(frame, text="Nome do Devedor:").pack(pady=20)
+    entry_nome_devedor = tk.Entry(frame)
+    entry_nome_devedor.pack(pady=10)
+
+    btn_salvar = tk.Button(frame, text="Salvar", command=salvar_devedor)
+    btn_salvar.pack(pady=20)
+
+    btn_voltar = tk.Button(frame, text="Voltar", command=janela_devedor.destroy)
+    btn_voltar.pack(pady=10)
+
+# Função para excluir um devedor
+def excluir_devedor():
+    def confirmar_exclusao():
+        devedor_selecionado = combo_devedores.get()
+        if devedor_selecionado:
+            confirmar = messagebox.askyesno("Confirmar Exclusão",
+                                            f"Deseja realmente excluir o devedor '{devedor_selecionado}'?")
+            if confirmar:
+                cursor.execute('DELETE FROM devedores WHERE nome = ?', (devedor_selecionado,))
+                conn.commit()
+                messagebox.showinfo("Sucesso", f"Devedor '{devedor_selecionado}' excluído com sucesso!")
+                janela_confirmar_exclusao.destroy()
+        else:
+            messagebox.showwarning("Erro", "Selecione um devedor para excluir.")
+
+    janela_confirmar_exclusao = tk.Toplevel(root)
+    janela_confirmar_exclusao.title("Excluir Devedor")
+    janela_confirmar_exclusao.attributes("-fullscreen", True)
+
+    frame = tk.Frame(janela_confirmar_exclusao)
+    frame.pack(expand=True, fill=tk.BOTH)
+
+    tk.Label(frame, text="Selecione o devedor a ser excluído:").pack(pady=10)
+    devedores = cursor.execute('SELECT nome FROM devedores').fetchall()
+    devedores = [devedor[0] for devedor in devedores]
+    combo_devedores = ttk.Combobox(frame, values=devedores)
+    combo_devedores.pack(pady=10)
+
+    btn_confirmar = tk.Button(frame, text="Confirmar Exclusão", command=confirmar_exclusao)
+    btn_confirmar.pack(pady=10)
+
+    btn_voltar = tk.Button(frame, text="Voltar", command=janela_confirmar_exclusao.destroy)
+    btn_voltar.pack(pady=10)
+
+# Função para salvar o nome do cartão
+def salvar_cartao():
+    nome = entry_nome_cartao.get()
+    if nome:
+        cursor.execute('SELECT * FROM cartoes WHERE nome = ?', (nome,))
+        if cursor.fetchone():
+            messagebox.showwarning("Erro", f"Cartão {nome} já existe!")
+        else:
+            cursor.execute('INSERT INTO cartoes (nome) VALUES (?)', (nome,))
+            conn.commit()
+            messagebox.showinfo("Sucesso", f"Cartão {nome} cadastrado com sucesso!")
+            janela_cartao.destroy()  # Fecha a janela após salvar
+    else:
+        messagebox.showwarning("Erro", "O nome do cartão não pode estar vazio.")
+
+# Função para abrir a tela de cadastro de cartões
+def cadastro_cartoes():
+    global janela_cartao, entry_nome_cartao
+    janela_cartao = tk.Toplevel(root)
+    janela_cartao.title("Cadastro de Cartão")
+    janela_cartao.attributes("-fullscreen", True)
+
+    frame = tk.Frame(janela_cartao)
+    frame.pack(expand=True, fill=tk.BOTH)
+
+    tk.Label(frame, text="Nome do Cartão:").pack(pady=20)
+    entry_nome_cartao = tk.Entry(frame)
+    entry_nome_cartao.pack(pady=10)
+
+    btn_salvar = tk.Button(frame, text="Salvar", command=salvar_cartao)
+    btn_salvar.pack(pady=20)
+
+    btn_voltar = tk.Button(frame, text="Voltar", command=janela_cartao.destroy)
+    btn_voltar.pack(pady=10)
+
+# Função para validar a data no formato dd-mm-aaaa
+def validar_data(data_text):
+    try:
+        datetime.strptime(data_text, '%d-%m-%Y')
+        return True
+    except ValueError:
+        return False
+
+# Função para salvar a despesa
+def salvar_despesa():
+    devedor = combo_devedores.get()
+    cartao = combo_cartoes.get()
+    local_compra = entry_local_compra.get()
+    valor_compra = entry_valor_compra.get()
+    data_compra = entry_data_compra.get()
+    tipo_pagamento = var_tipo_pagamento.get()
+    parcelas = entry_parcelas.get() if tipo_pagamento == "Parcelado" else 1
+
+    if not devedor or not cartao or not local_compra or not valor_compra or not data_compra:
+        messagebox.showwarning("Erro", "Todos os campos devem ser preenchidos!")
+        return
+
+    if not validar_data(data_compra):
+        messagebox.showwarning("Erro", "Data inválida! Use o formato DD-MM-AAAA.")
+        return
+
+    try:
+        valor_compra = float(valor_compra)
+    except ValueError:
+        messagebox.showwarning("Erro", "Valor da compra deve ser um número.")
+        return
+
+    cursor.execute('SELECT id FROM devedores WHERE nome = ?', (devedor,))
+    devedor_id = cursor.fetchone()
+    if not devedor_id:
+        messagebox.showwarning("Erro", "Devedor não encontrado!")
+        return
+
+    cursor.execute('SELECT id FROM cartoes WHERE nome = ?', (cartao,))
+    cartao_id = cursor.fetchone()
+    if not cartao_id:
+        messagebox.showwarning("Erro", "Cartão não encontrado!")
+        return
+
+    cursor.execute('''
+        INSERT INTO despesas (devedor_id, cartao_id, local_compra, valor_compra, data_compra, tipo_pagamento, parcelas)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (devedor_id[0], cartao_id[0], local_compra, valor_compra, data_compra, tipo_pagamento, parcelas))
+
+    conn.commit()
+    messagebox.showinfo("Sucesso", "Despesa cadastrada com sucesso!")
+    janela_despesa.destroy()  # Fecha a janela após salvar
+
+# Função para abrir a tela de cadastro de despesa
+def cadastro_despesas():
+    global janela_despesa, combo_devedores, combo_cartoes, entry_local_compra, entry_valor_compra, entry_data_compra, var_tipo_pagamento, entry_parcelas
+    janela_despesa = tk.Toplevel(root)
+    janela_despesa.title("Cadastro de Despesa")
+    janela_despesa.attributes("-fullscreen", True)
+
+    frame = tk.Frame(janela_despesa)
+    frame.pack(expand=True, fill=tk.BOTH)
+
+    tk.Label(frame, text="Devedor:").pack(pady=10)
+    devedores = cursor.execute('SELECT nome FROM devedores').fetchall()
+    devedores = [devedor[0] for devedor in devedores]
+    combo_devedores = ttk.Combobox(frame, values=devedores)
+    combo_devedores.pack(pady=5)
+
+    tk.Label(frame, text="Cartão:").pack(pady=10)
+    cartoes = cursor.execute('SELECT nome FROM cartoes').fetchall()
+    cartoes = [cartao[0] for cartao in cartoes]
+    combo_cartoes = ttk.Combobox(frame, values=cartoes)
+    combo_cartoes.pack(pady=5)
+
+    tk.Label(frame, text="Local da Compra:").pack(pady=10)
+    entry_local_compra = tk.Entry(frame)
+    entry_local_compra.pack(pady=5)
+
+    tk.Label(frame, text="Valor da Compra:").pack(pady=10)
+    entry_valor_compra = tk.Entry(frame)
+    entry_valor_compra.pack(pady=5)
+
+    tk.Label(frame, text="Data da Compra (DD-MM-AAAA):").pack(pady=10)
+    entry_data_compra = tk.Entry(frame)
+    entry_data_compra.pack(pady=5)
+
+    tk.Label(frame, text="Tipo de Pagamento:").pack(pady=10)
+    var_tipo_pagamento = tk.StringVar()
+    tipos_pagamento = ["À Vista", "Parcelado"]
+    combo_tipo_pagamento = ttk.Combobox(frame, textvariable=var_tipo_pagamento, values=tipos_pagamento)
+    combo_tipo_pagamento.pack(pady=5)
+
+    tk.Label(frame, text="Parcelas:").pack(pady=10)
+    entry_parcelas = tk.Entry(frame)
+    entry_parcelas.pack(pady=5)
+
+    btn_salvar = tk.Button(frame, text="Salvar", command=salvar_despesa)
+    btn_salvar.pack(pady=20)
+
+    btn_voltar = tk.Button(frame, text="Voltar", command=janela_despesa.destroy)
+    btn_voltar.pack(pady=10)
+
+# Função para exibir relatórios
+def exibir_relatorio():
+    janela_relatorio = tk.Toplevel(root)
+    janela_relatorio.title("Relatório de Despesas")
+    janela_relatorio.attributes("-fullscreen", True)
+
+    frame = tk.Frame(janela_relatorio)
+    frame.pack(expand=True, fill=tk.BOTH)
+
+    relatorio_text = tk.Text(frame, wrap=tk.WORD)
+    relatorio_text.pack(expand=True, fill=tk.BOTH)
+
+    despesas = cursor.execute('''
+        SELECT d.nome, c.nome, e.local_compra, e.valor_compra, e.data_compra, e.tipo_pagamento, e.parcelas
+        FROM despesas e
+        JOIN devedores d ON e.devedor_id = d.id
+        JOIN cartoes c ON e.cartao_id = c.id
+    ''').fetchall()
+
+    for despesa in despesas:
+        devedor_nome, cartao_nome, local, valor, data, tipo, parcelas = despesa
+        relatorio_text.insert(tk.END, f"Devedor: {devedor_nome}\nCartão: {cartao_nome}\nLocal: {local}\nValor: {valor}\nData: {data}\nTipo: {tipo}\nParcelas: {parcelas}\n\n")
+
+    btn_voltar = tk.Button(frame, text="Voltar", command=janela_relatorio.destroy)
+    btn_voltar.pack(pady=10)
+
+# Função para exibir informações do banco de dados
+def exibir_info_banco():
+    janela_info = tk.Toplevel(root)
+    janela_info.title("Informações do Banco de Dados")
+    janela_info.attributes("-fullscreen", True)
+
+    frame = tk.Frame(janela_info)
+    frame.pack(expand=True, fill=tk.BOTH)
+
+    info_text = tk.Text(frame, wrap=tk.WORD)
+    info_text.pack(expand=True, fill=tk.BOTH)
+
+    # Obtendo informações sobre o banco de dados
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tabelas = cursor.fetchall()
+    info_text.insert(tk.END, "Tabelas no Banco de Dados:\n")
+    for tabela in tabelas:
+        info_text.insert(tk.END, f"- {tabela[0]}\n")
+
+    info_text.insert(tk.END, "\nEstrutura das Tabelas:\n")
+    for tabela in tabelas:
+        cursor.execute(f"PRAGMA table_info({tabela[0]})")
+        colunas = cursor.fetchall()
+        info_text.insert(tk.END, f"\nTabela: {tabela[0]}\n")
+        for coluna in colunas:
+            info_text.insert(tk.END, f"  {coluna[1]} ({coluna[2]})\n")
+
+    btn_voltar = tk.Button(frame, text="Voltar", command=janela_info.destroy)
+    btn_voltar.pack(pady=10)
+
+# Configurar a janela principal
+root = tk.Tk()
+root.title("Sistema de Cadastro")
+root.attributes("-fullscreen", True)
+
+frame = tk.Frame(root)
+frame.pack(expand=True, fill=tk.BOTH)
+
+tk.Label(frame, text="Bem-vindo ao Sistema de Cadastro de Despesas", font=("Helvetica", 16)).pack(pady=20)
+
+btn_cadastro_devedor = tk.Button(frame, text="Cadastrar Devedor", command=cadastro_devedor)
+btn_cadastro_devedor.pack(pady=10)
+
+btn_excluir_devedor = tk.Button(frame, text="Excluir Devedor", command=excluir_devedor)
+btn_excluir_devedor.pack(pady=10)
+
+btn_cadastro_cartao = tk.Button(frame, text="Cadastrar Cartão", command=cadastro_cartoes)
+btn_cadastro_cartao.pack(pady=10)
+
+btn_cadastro_despesa = tk.Button(frame, text="Cadastrar Despesa", command=cadastro_despesas)
+btn_cadastro_despesa.pack(pady=10)
+
+btn_exibir_relatorio = tk.Button(frame, text="Exibir Relatório", command=exibir_relatorio)
+btn_exibir_relatorio.pack(pady=10)
+
+btn_info_banco = tk.Button(frame, text="Informações do Banco de Dados", command=exibir_info_banco)
+btn_info_banco.pack(pady=10)
+
+root.mainloop()
+
+# Fechar a conexão com o banco de dados ao sair
+conn.close()
